@@ -132,19 +132,6 @@ if uploaded_file is not None:
             for r in results
         ]).sort_values(by="Weathering Rate (Fw%)", ascending=False)
 
-
-        # Load and clean tons data
-        tons_data = pd.read_csv("tBasalt.csv")
-
-        # Normalize Deal ID format for matching
-        summary_df["Deal ID"] = summary_df["Deal ID"].astype(str).str.strip()
-        tons_data["Deal ID"] = tons_data["Deal ID"].astype(str).str.strip()
-
-
-        # Merge Basalt_Tons into summary_df
-        summary_df = summary_df.merge(tons_data[["Deal ID", "Basalt Tons"]], on="Deal ID", how="left")
-
-        st.markdown("### 📋 Summary Table: Deal ID, Weathering Rate, and Basalt Tons")
         st.dataframe(summary_df.reset_index(drop=True), use_container_width=True)
 
         # Step 5: Plotting function
