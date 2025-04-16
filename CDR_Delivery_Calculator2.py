@@ -144,18 +144,18 @@ if uploaded_file is not None:
         st.markdown(f"🪨 **{len(negative_results)} fields** with negative or zero weathering rates")
 
 
-        # # Step 3: Summary Table
-        # summary_df = pd.DataFrame([
-        #     {
-        #         "Deal ID": r["deal_id"],
-        #         "Field ID": r["field"],
-        #         "Grower": r["grower"],
-        #         "Weathering Rate (Fw%)": round(r["Fw_mean"], 2)
-        #     }
-        #     for r in results
-        # ]).sort_values(by="Weathering Rate (Fw%)", ascending=False)
+        # Step 3: Summary Table
+        summary_df = pd.DataFrame([
+            {
+                "Deal ID": r["deal_id"],
+                "Field ID": r["field"],
+                "Grower": r["grower"],
+                "Weathering Rate (Fw%)": round(r["Fw_mean"], 2)
+            }
+            for r in results
+        ]).sort_values(by="Weathering Rate (Fw%)", ascending=False)
 
-        # st.dataframe(summary_df.reset_index(drop=True), use_container_width=True)
+        st.dataframe(summary_df.reset_index(drop=True), use_container_width=True)
 
         # Step 5: Plotting function
         def plot_distribution(r, ax):
