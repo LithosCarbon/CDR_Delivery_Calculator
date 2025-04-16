@@ -6,6 +6,29 @@ import seaborn as sns
 import warnings
 import os
 
+def check_password():
+    def password_entered():
+        if st.session_state["password"] == "yourpassword123":  # <-- change this!
+            st.session_state["authenticated"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["authenticated"] = False
+
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
+
+    if not st.session_state["authenticated"]:
+        st.title("🔐 Password Protected")
+        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
+        st.stop()
+
+check_password()
+
+
+
+
+
+
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
