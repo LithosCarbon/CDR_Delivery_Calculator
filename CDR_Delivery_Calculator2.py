@@ -94,7 +94,7 @@ if uploaded_file is not None:
 
         # Step 2: Bootstrapping
         results = []
-        n_bootstrap = 100000
+        n_bootstrap = 10000
 
         for field in full_datasets:
             subset = data[data['Field ID'] == field]
