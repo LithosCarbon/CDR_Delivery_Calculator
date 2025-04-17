@@ -32,10 +32,9 @@ warnings.filterwarnings("ignore")
 # Streamlit setup
 st.set_page_config(layout="wide")
 st.title("Lithos tCDR Delivery Calculator")
-logo = Image.open("lithos_logo.png")
 
-# Put this near top of your sidebar or app layout
-st.image(logo)
+logo = Image.open("lithos_logo.png")
+st.sidebar.image(logo, width=150)
 
 
 uploaded_file = st.file_uploader("Upload your Geochem CSV", type="csv")
