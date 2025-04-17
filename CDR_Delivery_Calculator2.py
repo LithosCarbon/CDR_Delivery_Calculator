@@ -32,12 +32,14 @@ warnings.filterwarnings("ignore")
 # Streamlit setup
 st.set_page_config(layout="wide")
 
-# Inject Lithos logo (embedded) in the top-right corner
-components.html("""
-<div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 999;">
-    <img src="data:image/png;base64,..." width="150"/>
-</div>
-""", height=17)
+# # Inject Lithos logo (embedded) in the top-right corner
+# components.html("""
+# <div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 999;">
+#     <img src="data:image/png;base64,..." width="150"/>
+# </div>
+# """, height=17)
+
+st.title("Lithos Carbon tCDR Delivery Calculator")
 
 uploaded_file = st.file_uploader("Upload your Geochem CSV", type="csv")
 
