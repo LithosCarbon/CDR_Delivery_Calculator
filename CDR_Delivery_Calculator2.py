@@ -7,7 +7,6 @@ import warnings
 from PIL import Image
 import os
 
-
 def check_password():
     def password_entered():
         if st.session_state["password"] == "Lithos1":
@@ -33,6 +32,11 @@ warnings.filterwarnings("ignore")
 # Streamlit setup
 st.set_page_config(layout="wide")
 st.title("Lithos tCDR Delivery Calculator")
+logo = Image.open("lithos_logo.png")
+
+# Put this near top of your sidebar or app layout
+st.image(logo)
+
 
 uploaded_file = st.file_uploader("Upload your Geochem CSV", type="csv")
 
