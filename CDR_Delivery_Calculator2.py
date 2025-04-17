@@ -6,9 +6,10 @@ import seaborn as sns
 import warnings
 import os
 
+
 def check_password():
     def password_entered():
-        if st.session_state["password"] == "Lithos1":  # <-- change this!
+        if st.session_state["password"] == "Lithos1":
             st.session_state["authenticated"] = True
             del st.session_state["password"]
         else:
@@ -18,16 +19,12 @@ def check_password():
         st.session_state["authenticated"] = False
 
     if not st.session_state["authenticated"]:
-        st.title("🔐 Password Protected")
+        st.title("\U0001F510 Password Protected")
         st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
         st.stop()
 
+
 check_password()
-
-
-
-
-
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -44,7 +41,27 @@ if uploaded_file is not None:
         st.success("CSV uploaded!")
         st.write(data.head())
 
-        # Step 1: Cleanup
+        # Grouping level selector
+        grouping_options = ["Field ID", "Farm ID", "Grower", "Deal ID"]
+        base_grouping_options = grouping_options.copy()
+
+        # # Check if chemical binning is available
+        # chemical_binning_enabled = False
+        # farm_valid = []
+        # if "Farm ID" in data.columns and "Sample Type" in data.columns:
+        #     for farm in data['Farm ID'].unique():
+        #         farm_data = data[data['Farm ID'] == farm]
+        #         counts = farm_data['Sample Type'].value_counts()
+        #         if all(sample in counts for sample in ['BL', 'BLP', 'R1']) and \
+        #            counts['BL'] == counts['BLP'] == counts['R1']:
+        #             farm_valid.append(farm)
+
+        #     if farm_valid:
+        #         chemical_binning_enabled = True
+        #         grouping_options.append("Chemical Binning")
+
+        grouping_choice = st.selectbox("Group analysis by:", options=grouping_options, key="grouping_choice_main")
+
         if 'Grower, Deal ID' not in data.columns:
             st.error("The uploaded CSV is missing the 'Grower, Deal ID' column.")
             st.stop()
@@ -52,11 +69,10 @@ if uploaded_file is not None:
         data[['Grower', 'Deal ID']] = data['Grower, Deal ID'].str.split(', ', expand=True)
         data.drop(columns=['Grower, Deal ID'], inplace=True)
 
-        treatments = data[data['Sample Type'].isin(['BL', 'BLP', 'R1','R2'])].copy()
-        treatments['Field ID'] = treatments['Field ID'].fillna('')
+        treatments = data[data['Sample Type'].isin(['BL', 'BLP', 'R1', 'R2'])].copy()
+        treatments[grouping_choice] = treatments[grouping_choice].fillna('')
         treatments = treatments[(treatments['CaO'].notnull()) & (treatments['MgO'].notnull())]
 
-        # Oxide to elemental conversions
         conversion_factors = {
             'SiO2': 0.4674, 'Al2O3': 0.5293, 'Fe2O3': 0.6994, 'CaO': 0.7147,
             'MgO': 0.6030, 'Na2O': 0.7419, 'K2O': 0.8301, 'Cr2O3': 0.6842,
@@ -68,36 +84,56 @@ if uploaded_file is not None:
                 treatments[oxide] = pd.to_numeric(treatments[oxide], errors='coerce')
                 treatments[oxide + '_elemental'] = treatments[oxide] * factor
 
-        for element in ['Ni', 'Cr','LOI']:
+        for element in ['Ni', 'Cr', 'LOI']:
             if element in treatments.columns:
                 treatments[element] = pd.to_numeric(treatments[element], errors='coerce')
 
-        # Moles calculation
         treatments['Ca_moles'] = treatments['CaO_elemental'] / 40.078
         treatments['Mg_moles'] = treatments['MgO_elemental'] / 24.305
         treatments['Total_Ca_Mg_moles'] = treatments['Ca_moles'] + treatments['Mg_moles']
+
         data = treatments
 
-        # Identify complete datasets
+        # if grouping_choice == "Chemical Binning":
+        #     st.markdown("### Chemical Binning Mode")
+
+        #     compiled_df = data[data['Farm ID'].isin(farm_valid)].copy()
+
+        #     csv = compiled_df.to_csv(index=False).encode('utf-8')
+        #     st.download_button("Download Compiled Dataset", data=csv, file_name="compiled_data.csv")
+
+        #     bin_metric = st.selectbox("Select metric to bin by:", ["SiO2/Al2O3", "LOI"], key="bin_metric")
+
+        #     compiled_df['SiO2'] = pd.to_numeric(compiled_df.get('SiO2_elemental', np.nan), errors='coerce')
+        #     compiled_df['Al2O3'] = pd.to_numeric(compiled_df.get('Al2O3_elemental', np.nan), errors='coerce')
+        #     compiled_df['LOI'] = pd.to_numeric(compiled_df.get('LOI', np.nan), errors='coerce')
+
+        #     if bin_metric == "SiO2/Al2O3":
+        #         compiled_df['bin_metric'] = compiled_df['SiO2'] / compiled_df['Al2O3']
+        #     else:
+        #         compiled_df['bin_metric'] = compiled_df['LOI']
+
+        #     compiled_df = compiled_df[compiled_df['bin_metric'].notnull()]
+        #     compiled_df['Chemical Bin'] = pd.qcut(compiled_df['bin_metric'], 5, labels=[f"Bin {i+1}" for i in range(5)])
+
+        #     data = compiled_df
+        #     grouping_choice = "Chemical Bin"
+
         full_datasets = []
-        for field in data['Field ID'].unique():
-            subset = data[data['Field ID'] == field]
+        for group in data[grouping_choice].unique():
+            subset = data[data[grouping_choice] == group]
             types_present = subset['Sample Type'].unique()
             if all(x in types_present for x in ['BL', 'BLP', 'R1']):
-                full_datasets.append(field)
+                full_datasets.append(group)
 
-        st.markdown(f"✅ **{len(full_datasets)} unique fields** with complete datasets")
+        st.markdown(f"✅ **{len(full_datasets)} unique groups** with complete datasets")
         st.markdown(f"👩‍🌾 Across **{data['Grower'].nunique()} unique growers**")
 
-
-         # ... (keep your code up to this point unchanged)
-
-        # Step 2: Bootstrapping
         results = []
         n_bootstrap = 10000
 
-        for field in full_datasets:
-            subset = data[data['Field ID'] == field]
+        for group in full_datasets:
+            subset = data[data[grouping_choice] == group]
             bl = pd.to_numeric(subset[subset['Sample Type'] == 'BL']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
             blp = pd.to_numeric(subset[subset['Sample Type'] == 'BLP']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
             r1 = pd.to_numeric(subset[subset['Sample Type'] == 'R1']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
@@ -120,11 +156,18 @@ if uploaded_file is not None:
             Fw_vals = np.where(denominator != 0, (blp_means - r1_means) / denominator * 100, np.nan)
             Fw_mean = np.nanmean(Fw_vals)
 
+            Fw_2_vals = None
+            Fw_2_mean = None
+            if r2_means is not None:
+                Fw_2_vals = np.where(denominator != 0, (blp_means - r2_means) / denominator * 100, np.nan)
+                Fw_2_mean = np.nanmean(Fw_2_vals)
+
             results.append({
-                "field": field,
+                grouping_choice: group,
                 "deal_id": subset['Deal ID'].iloc[0],
                 "grower": subset['Grower'].iloc[0],
                 "Fw_mean": Fw_mean,
+                "Fw_2_mean": Fw_2_mean,
                 "bl_list": bl_means,
                 "blp_list": blp_means,
                 "r1_list": r1_means,
@@ -135,20 +178,16 @@ if uploaded_file is not None:
                 "r2_count": len(r2) if r2 is not None else 0,
             })
 
-
-
         positive_results = sorted([r for r in results if r["Fw_mean"] > 0], key=lambda x: -x["Fw_mean"])
         negative_results = sorted([r for r in results if r["Fw_mean"] <= 0], key=lambda x: x["Fw_mean"])
 
-        st.markdown(f"🌱 **{len(positive_results)} fields** with positive weathering rates")
-        st.markdown(f"🪨 **{len(negative_results)} fields** with negative or zero weathering rates")
+        st.markdown(f"\U0001F331 **{len(positive_results)} groups** with positive weathering rates")
+        st.markdown(f"\U0001FAA8 **{len(negative_results)} groups** with negative or zero weathering rates")
 
-
-        # Step 3: Summary Table
         summary_df = pd.DataFrame([
             {
                 "Deal ID": r["deal_id"],
-                "Field ID": r["field"],
+                grouping_choice: r[grouping_choice],
                 "Grower": r["grower"],
                 "Weathering Rate (Fw%)": round(r["Fw_mean"], 2)
             }
@@ -157,7 +196,6 @@ if uploaded_file is not None:
 
         st.dataframe(summary_df.reset_index(drop=True), use_container_width=True)
 
-        # Step 5: Plotting function
         def plot_distribution(r, ax):
             sns.histplot(r["bl_list"], bins=50, color="blue", label="BL", stat="density", alpha=0.5, ax=ax)
             sns.histplot(r["blp_list"], bins=50, color="purple", label="BLP", stat="density", alpha=0.5, ax=ax)
@@ -171,30 +209,26 @@ if uploaded_file is not None:
                 sns.histplot(r["r2_list"], bins=50, color="orange", label="R2", stat="density", alpha=0.5, ax=ax)
                 sns.kdeplot(r["r2_list"], color="orange", lw=2.5, ax=ax)
 
-            ax.set_title(
-                f"Farm: {r['field']} | Deal ID: {r['deal_id']}\n"
-                f"Fw: {r['Fw_mean']:.2f}%\n"
-                f"BL: {r['bl_count']}, BLP: {r['blp_count']}, R1: {r['r1_count']}, R2: {r['r2_count']}"
+            title = (
+                f"{grouping_choice}: {r[grouping_choice]} | Deal ID: {r['deal_id']}\n"
+                f"Fw (R1): {r['Fw_mean']:.2f}%"
             )
+            if r.get("Fw_2_mean") is not None:
+                title += f" | Fw_2 (R2): {r['Fw_2_mean']:.2f}%"
+            title += (
+                f"\nBL: {r['bl_count']}, BLP: {r['blp_count']}, "
+                f"R1: {r['r1_count']}, R2: {r['r2_count']}"
+            )
+            ax.set_title(title)
             ax.set_xlabel("Ca + Mg (moles)")
             ax.set_ylabel("Density")
             ax.legend()
 
-
-
-
-
-
-
-
-
-        st.markdown("**---------------------------------------------------------------------------------------------------------------------------------**")
-        st.markdown("**---------------------------------------------------------------------------------------------------------------------------------**")
-
+        #st.markdown("**-" * 65)
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader("Positive Weathering Rates 🌿")
+            st.subheader("Positive Weathering Rates \U0001F33F")
             for r in positive_results:
                 fig, ax = plt.subplots()
                 plot_distribution(r, ax)
@@ -210,4 +244,4 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"⚠️ Error during processing: {e}")
 else:
-	    st.info("📄 Upload a CSV file to begin.")
+    st.info("📄 Upload a CSV file to begin.")
