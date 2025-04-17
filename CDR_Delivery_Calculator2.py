@@ -189,6 +189,7 @@ if uploaded_file is not None:
                 "Deal ID": r["deal_id"],
                 grouping_choice: r[grouping_choice],
                 "Grower": r["grower"],
+                "BL Count": r["bl_count"],
                 "Weathering Rate (Fw%)": round(r["Fw_mean"], 2)
             }
             for r in results
