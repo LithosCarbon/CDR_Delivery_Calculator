@@ -33,7 +33,7 @@ warnings.filterwarnings("ignore")
 st.set_page_config(layout="wide")
 st.title("Lithos tCDR Delivery Calculator")
 
-logo = Image.open("lithos_logo.png")
+logo = Image.open("https://github.com/Elliot-Chang/CDR_Delivery_Calculator/blob/49a7a819893202a0dfb8e8c773692593e94f0622/lithos_logo.png")
 st.sidebar.image(logo, width=150)
 
 
