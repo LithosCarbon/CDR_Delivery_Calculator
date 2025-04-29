@@ -124,44 +124,44 @@ if uploaded_file is not None:
             r1_samples = np.random.choice(r1, (n_bootstrap, len(r1)), replace=True)
             r2_samples = np.random.choice(r2, (n_bootstrap, len(r2)), replace=True) if r2 is not None and len(r2) > 0 else None
 
-            bl_medians = np.nanmedian(bl_samples, axis=1)
-            blp_medians = np.nanmedian(blp_samples, axis=1)
-            r1_medians = np.nanmedian(r1_samples, axis=1)
-            r2_medians = np.nanmedian(r2_samples, axis=1) if r2_samples is not None else None
+            bl_means = np.nanmean(bl_samples, axis=1)
+            blp_means = np.nanmean(blp_samples, axis=1)
+            r1_means = np.nanmean(r1_samples, axis=1)
+            r2_means = np.nanmean(r2_samples, axis=1) if r2_samples is not None else None
 
-            denominator = blp_medians - bl_medians
-            Fw_vals = np.where(denominator != 0, (blp_medians - r1_medians) / denominator * 100, np.nan)
-            Fw_median = np.nanmedian(Fw_vals)
+            denominator = blp_means - bl_means
+            Fw_vals = np.where(denominator != 0, (blp_means - r1_means) / denominator * 100, np.nan)
+            Fw_mean = np.nanmean(Fw_vals)
             Fw_std = np.nanstd(Fw_vals)
 
             Fw_2_vals = None
-            Fw_2_median = None
+            Fw_2_mean = None
             Fw_2_std = None
-            if r2_medians is not None:
-                Fw_2_vals = np.where(denominator != 0, (blp_medians - r2_medians) / denominator * 100, np.nan)
-                Fw_2_median = np.nanmedian(Fw_2_vals)
+            if r2_means is not None:
+                Fw_2_vals = np.where(denominator != 0, (blp_means - r2_means) / denominator * 100, np.nan)
+                Fw_2_mean = np.nanmean(Fw_2_vals)
                 Fw_2_std = np.nanstd(Fw_2_vals)
 
             results.append({
                 grouping_choice: group,
                 "deal_id": subset['Deal ID'].iloc[0],
                 "grower": subset['Grower'].iloc[0],
-                "Fw_median": Fw_median,
+                "Fw_mean": Fw_mean,
                 "Fw_std": Fw_std,
-                "Fw_2_median": Fw_2_median,
+                "Fw_2_mean": Fw_2_mean,
                 "Fw_2_std": Fw_2_std,
-                "bl_list": bl_medians,
-                "blp_list": blp_medians,
-                "r1_list": r1_medians,
-                "r2_list": r2_medians,
+                "bl_list": bl_means,
+                "blp_list": blp_means,
+                "r1_list": r1_means,
+                "r2_list": r2_means,
                 "bl_count": len(bl),
                 "blp_count": len(blp),
                 "r1_count": len(r1),
                 "r2_count": len(r2) if r2 is not None else 0,
             })
 
-        positive_results = sorted([r for r in results if r["Fw_median"] > 0], key=lambda x: -x["Fw_median"])
-        negative_results = sorted([r for r in results if r["Fw_median"] <= 0], key=lambda x: x["Fw_median"])
+        positive_results = sorted([r for r in results if r["Fw_mean"] > 0], key=lambda x: -x["Fw_mean"])
+        negative_results = sorted([r for r in results if r["Fw_mean"] <= 0], key=lambda x: x["Fw_mean"])
 
         st.markdown(f"\U0001F331 **{len(positive_results)} groups** with positive weathering rates")
         st.markdown(f"\U0001FAA8 **{len(negative_results)} groups** with negative or zero weathering rates")
@@ -175,9 +175,9 @@ if uploaded_file is not None:
                 "BLP Count": r["blp_count"],
                 "R1 Count": r["r1_count"],
                 "R2 Count": r["r2_count"],
-                "Fw Median (%)": round(r["Fw_median"], 2),
+                "Fw mean (%)": round(r["Fw_mean"], 2),
                 "Fw Std Dev": round(r["Fw_std"], 2),
-                "Fw₂ Median (%)": round(r["Fw_2_median"], 2) if r["Fw_2_median"] is not None else None,
+                "Fw₂ mean (%)": round(r["Fw_2_mean"], 2) if r["Fw_2_mean"] is not None else None,
                 "Fw₂ Std Dev": round(r["Fw_2_std"], 2) if r["Fw_2_std"] is not None else None,
             }
             for r in results
@@ -210,10 +210,10 @@ if uploaded_file is not None:
 
             title = (
                 #f"{grouping_choice}: {r[grouping_choice]} | Deal ID: {r['deal_id']}\n"
-                f"Fw (R1): {r['Fw_median']:.2f} ± {r['Fw_std']:.2f}%"
+                f"Fw (R1): {r['Fw_mean']:.2f} ± {r['Fw_std']:.2f}%"
             )
-            if r.get("Fw_2_median") is not None:
-                title += f" | Fw_2 (R2): {r['Fw_2_median']:.2f} ± {r['Fw_2_std']:.2f}%%"
+            if r.get("Fw_2_mean") is not None:
+                title += f" | Fw_2 (R2): {r['Fw_2_mean']:.2f} ± {r['Fw_2_std']:.2f}%%"
             title += (
                 f"\nRegional BL: {r['bl_count']}, BLP: {r['blp_count']}, "
                 f"R1: {r['r1_count']}, R2: {r['r2_count']}"
