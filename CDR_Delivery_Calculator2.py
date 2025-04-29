@@ -5,40 +5,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
-import os
-
-def check_password():
-    def password_entered():
-        if st.session_state["password"] == "Lithos1":
-            st.session_state["authenticated"] = True
-            del st.session_state["password"]
-        else:
-            st.session_state["authenticated"] = False
-
-    if "authenticated" not in st.session_state:
-        st.session_state["authenticated"] = False
-
-    if not st.session_state["authenticated"]:
-        st.title("\U0001F510 Password Protected")
-        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
-        st.stop()
-
-
-check_password()
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
 # Streamlit setup
 st.set_page_config(layout="wide")
-
-# # Inject Lithos logo (embedded) in the top-right corner
-# components.html("""
-# <div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 999;">
-#     <img src="data:image/png;base64,..." width="150"/>
-# </div>
-# """, height=17)
-
 st.title("Lithos Carbon tCDR Delivery Calculator")
 
 uploaded_file = st.file_uploader("Upload your Geochem CSV", type="csv")
@@ -49,25 +21,7 @@ if uploaded_file is not None:
         st.success("CSV uploaded!")
         st.write(data.head())
 
-        # Grouping level selector
-        grouping_options = ["Field ID", "Farm ID", "Grower", "Deal ID"]
-        base_grouping_options = grouping_options.copy()
-
-        # # Check if chemical binning is available
-        # chemical_binning_enabled = False
-        # farm_valid = []
-        # if "Farm ID" in data.columns and "Sample Type" in data.columns:
-        #     for farm in data['Farm ID'].unique():
-        #         farm_data = data[data['Farm ID'] == farm]
-        #         counts = farm_data['Sample Type'].value_counts()
-        #         if all(sample in counts for sample in ['BL', 'BLP', 'R1']) and \
-        #            counts['BL'] == counts['BLP'] == counts['R1']:
-        #             farm_valid.append(farm)
-
-        #     if farm_valid:
-        #         chemical_binning_enabled = True
-        #         grouping_options.append("Chemical Binning")
-
+        grouping_options = ["Field ID", "Farm ID", "Deal ID", "No Grouping (All Data)"]
         grouping_choice = st.selectbox("Group analysis by:", options=grouping_options, key="grouping_choice_main")
 
         if 'Grower, Deal ID' not in data.columns:
@@ -77,8 +31,7 @@ if uploaded_file is not None:
         data[['Grower', 'Deal ID']] = data['Grower, Deal ID'].str.split(', ', expand=True)
         data.drop(columns=['Grower, Deal ID'], inplace=True)
 
-        treatments = data[data['Sample Type'].isin(['BL', 'BLP', 'R1', 'R2'])].copy()
-        treatments[grouping_choice] = treatments[grouping_choice].fillna('')
+        treatments = data[data['Sample Type'].isin(['BL', 'BLP', 'R1'])].copy()
         treatments = treatments[(treatments['CaO'].notnull()) & (treatments['MgO'].notnull())]
 
         conversion_factors = {
@@ -99,50 +52,66 @@ if uploaded_file is not None:
         treatments['Ca_moles'] = treatments['CaO_elemental'] / 40.078
         treatments['Mg_moles'] = treatments['MgO_elemental'] / 24.305
         treatments['Total_Ca_Mg_moles'] = treatments['Ca_moles'] + treatments['Mg_moles']
-
         data = treatments
 
-        # if grouping_choice == "Chemical Binning":
-        #     st.markdown("### Chemical Binning Mode")
+        @st.cache_data
+        def convert_df(df):
+            return df.to_csv(index=False).encode('utf-8')
 
-        #     compiled_df = data[data['Farm ID'].isin(farm_valid)].copy()
+        if grouping_choice == "No Grouping (All Data)":
+            all_growers = sorted(data['Grower'].dropna().unique())
+            selected_growers = st.multiselect("Select growers to include:", options=all_growers, default=all_growers)
+            data = data[data['Grower'].isin(selected_growers)]
+            data['__all__'] = "All Samples"
+            grouping_choice = '__all__'
 
-        #     csv = compiled_df.to_csv(index=False).encode('utf-8')
-        #     st.download_button("Download Compiled Dataset", data=csv, file_name="compiled_data.csv")
+            # First: make a copy of your filtered data
+            filtered_data = data.copy()
 
-        #     bin_metric = st.selectbox("Select metric to bin by:", ["SiO2/Al2O3", "LOI"], key="bin_metric")
+            # Then: create a new "Grower, Deal ID" column
+            filtered_data['Grower, Deal ID'] = filtered_data['Grower'] + ', ' + filtered_data['Deal ID'].astype(str)
 
-        #     compiled_df['SiO2'] = pd.to_numeric(compiled_df.get('SiO2_elemental', np.nan), errors='coerce')
-        #     compiled_df['Al2O3'] = pd.to_numeric(compiled_df.get('Al2O3_elemental', np.nan), errors='coerce')
-        #     compiled_df['LOI'] = pd.to_numeric(compiled_df.get('LOI', np.nan), errors='coerce')
+            # Optional: move "Grower, Deal ID" to the first column
+            cols = ['Grower, Deal ID'] + [col for col in filtered_data.columns if col not in ['Grower, Deal ID', 'Grower', 'Deal ID']]
+            filtered_data = filtered_data[cols]
 
-        #     if bin_metric == "SiO2/Al2O3":
-        #         compiled_df['bin_metric'] = compiled_df['SiO2'] / compiled_df['Al2O3']
-        #     else:
-        #         compiled_df['bin_metric'] = compiled_df['LOI']
+            # Now: offer it for download
+            st.markdown("### 📥 Download Raw Filtered Data")
+            filtered_csv = convert_df(filtered_data)
+            st.download_button(
+                label="Download CSV of Selected Growers",
+                data=filtered_csv,
+                file_name='filtered_raw_data.csv',
+                mime='text/csv',
+            
+            )
 
-        #     compiled_df = compiled_df[compiled_df['bin_metric'].notnull()]
-        #     compiled_df['Chemical Bin'] = pd.qcut(compiled_df['bin_metric'], 5, labels=[f"Bin {i+1}" for i in range(5)])
-
-        #     data = compiled_df
-        #     grouping_choice = "Chemical Bin"
 
         full_datasets = []
         for group in data[grouping_choice].unique():
             subset = data[data[grouping_choice] == group]
             types_present = subset['Sample Type'].unique()
-            if all(x in types_present for x in ['BL', 'BLP', 'R1']):
+            if all(x in types_present for x in ['BLP', 'R1']):
                 full_datasets.append(group)
+
+        # Allow download of selected growers subset
+        @st.cache_data
+        def convert_df(df):
+            return df.to_csv(index=False).encode('utf-8')
+
+        csv = convert_df(data)
+
 
         st.markdown(f"✅ **{len(full_datasets)} unique groups** with complete datasets")
         st.markdown(f"👩‍🌾 Across **{data['Grower'].nunique()} unique growers**")
 
         results = []
-        n_bootstrap = 30000
+        n_bootstrap = 20000
 
         for group in full_datasets:
             subset = data[data[grouping_choice] == group]
-            bl = pd.to_numeric(subset[subset['Sample Type'] == 'BL']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
+            regional = data[data['Farm ID'] == 'Regional']
+            bl = pd.to_numeric(regional[regional['Sample Type'] == 'BL']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
             blp = pd.to_numeric(subset[subset['Sample Type'] == 'BLP']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
             r1 = pd.to_numeric(subset[subset['Sample Type'] == 'R1']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
             r2 = pd.to_numeric(subset[subset['Sample Type'] == 'R2']['Total_Ca_Mg_moles'], errors='coerce').dropna().values if 'R2' in subset['Sample Type'].values else None
@@ -163,19 +132,24 @@ if uploaded_file is not None:
             denominator = blp_medians - bl_medians
             Fw_vals = np.where(denominator != 0, (blp_medians - r1_medians) / denominator * 100, np.nan)
             Fw_median = np.nanmedian(Fw_vals)
+            Fw_std = np.nanstd(Fw_vals)
 
             Fw_2_vals = None
             Fw_2_median = None
+            Fw_2_std = None
             if r2_medians is not None:
                 Fw_2_vals = np.where(denominator != 0, (blp_medians - r2_medians) / denominator * 100, np.nan)
                 Fw_2_median = np.nanmedian(Fw_2_vals)
+                Fw_2_std = np.nanstd(Fw_2_vals)
 
             results.append({
                 grouping_choice: group,
                 "deal_id": subset['Deal ID'].iloc[0],
                 "grower": subset['Grower'].iloc[0],
                 "Fw_median": Fw_median,
+                "Fw_std": Fw_std,
                 "Fw_2_median": Fw_2_median,
+                "Fw_2_std": Fw_2_std,
                 "bl_list": bl_medians,
                 "blp_list": blp_medians,
                 "r1_list": r1_medians,
@@ -198,15 +172,31 @@ if uploaded_file is not None:
                 grouping_choice: r[grouping_choice],
                 "Grower": r["grower"],
                 "BL Count": r["bl_count"],
-                "Weathering Rate (Fw%)": round(r["Fw_median"], 2)
+                "BLP Count": r["blp_count"],
+                "R1 Count": r["r1_count"],
+                "R2 Count": r["r2_count"],
+                "Fw Median (%)": round(r["Fw_median"], 2),
+                "Fw Std Dev": round(r["Fw_std"], 2),
+                "Fw₂ Median (%)": round(r["Fw_2_median"], 2) if r["Fw_2_median"] is not None else None,
+                "Fw₂ Std Dev": round(r["Fw_2_std"], 2) if r["Fw_2_std"] is not None else None,
             }
             for r in results
-        ]).sort_values(by="Weathering Rate (Fw%)", ascending=False)
+        ])
 
         st.dataframe(summary_df.reset_index(drop=True), use_container_width=True)
 
+        summary_csv = convert_df(summary_df)
+
+        st.download_button(
+            label="Download Summary Table",
+            data=summary_csv,
+            file_name='summary_weathering_rates.csv',
+            mime='text/csv'
+        )
+
+
         def plot_distribution(r, ax):
-            sns.histplot(r["bl_list"], bins=50, color="blue", label="BL", stat="density", alpha=0.5, ax=ax)
+            sns.histplot(r["bl_list"], bins=50, color="blue", label="Regional BL", stat="density", alpha=0.5, ax=ax)
             sns.histplot(r["blp_list"], bins=50, color="purple", label="BLP", stat="density", alpha=0.5, ax=ax)
             sns.histplot(r["r1_list"], bins=50, color="green", label="R1", stat="density", alpha=0.5, ax=ax)
 
@@ -219,13 +209,13 @@ if uploaded_file is not None:
                 sns.kdeplot(r["r2_list"], color="orange", lw=2.5, ax=ax)
 
             title = (
-                f"{grouping_choice}: {r[grouping_choice]} | Deal ID: {r['deal_id']}\n"
-                f"Fw (R1): {r['Fw_median']:.2f}%"
+                #f"{grouping_choice}: {r[grouping_choice]} | Deal ID: {r['deal_id']}\n"
+                f"Fw (R1): {r['Fw_median']:.2f} ± {r['Fw_std']:.2f}%"
             )
             if r.get("Fw_2_median") is not None:
-                title += f" | Fw_2 (R2): {r['Fw_2_median']:.2f}%"
+                title += f" | Fw_2 (R2): {r['Fw_2_median']:.2f} ± {r['Fw_2_std']:.2f}%%"
             title += (
-                f"\nBL: {r['bl_count']}, BLP: {r['blp_count']}, "
+                f"\nRegional BL: {r['bl_count']}, BLP: {r['blp_count']}, "
                 f"R1: {r['r1_count']}, R2: {r['r2_count']}"
             )
             ax.set_title(title)
@@ -233,11 +223,10 @@ if uploaded_file is not None:
             ax.set_ylabel("Density")
             ax.legend()
 
-        #st.markdown("**-" * 65)
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader("Positive Weathering Rates \U0001F33F")
+            st.subheader("Positive Weathering Rates 🌿")
             for r in positive_results:
                 fig, ax = plt.subplots()
                 plot_distribution(r, ax)
