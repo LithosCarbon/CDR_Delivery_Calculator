@@ -252,19 +252,23 @@ st.header("🔬 Bootstrap Distribution Viewer")
 numeric_columns = [col for col in data.columns if pd.api.types.is_numeric_dtype(data[col])]
 selected_element = st.selectbox("Select element to bootstrap:", numeric_columns)
 
-sample_type = st.selectbox("Select Sample Type:", ['BL', 'BLP', 'R1', 'R2'])
+sample_types = st.multiselect("Select Sample Type(s):", options=['BL', 'BLP', 'R1', 'R2'], default=['BL', 'BLP', 'R1'])
 
-subset_element = data[data['Sample Type'] == sample_type][selected_element].dropna().values
+fig, ax = plt.subplots(figsize=(8, 4))
 
-if len(subset_element) == 0:
-    st.warning(f"No data found for {selected_element} in {sample_type}")
-else:
-    boot_samples = np.random.choice(subset_element, (n_bootstrap, len(subset_element)), replace=True)
+for sample_type in sample_types:
+    subset = data[data['Sample Type'] == sample_type][selected_element].dropna().values
+    if len(subset) == 0:
+        st.warning(f"No data for {selected_element} in {sample_type}")
+        continue
+
+    boot_samples = np.random.choice(subset, (n_bootstrap, len(subset)), replace=True)
     boot_means = np.nanmean(boot_samples, axis=1)
 
-    fig, ax = plt.subplots(figsize=(8, 4))
-    sns.histplot(boot_means, bins=50, kde=True, color='teal', ax=ax)
-    ax.set_title(f"Bootstrap Mean Distribution\n{selected_element} in {sample_type}")
-    ax.set_xlabel(f"{selected_element} Mean Value")
-    ax.set_ylabel("Frequency")
-    st.pyplot(fig)
+    sns.histplot(boot_means, bins=50, kde=True, stat='density', label=sample_type, ax=ax, alpha=0.4)
+
+ax.set_title(f"Bootstrap Mean Distribution for {selected_element}")
+ax.set_xlabel(f"{selected_element} Mean Value")
+ax.set_ylabel("Density")
+ax.legend(title="Sample Type")
+st.pyplot(fig)
