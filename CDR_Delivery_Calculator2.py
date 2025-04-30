@@ -49,43 +49,46 @@ if uploaded_file is not None:
             if element in treatments.columns:
                 treatments[element] = pd.to_numeric(treatments[element], errors='coerce')
 
-        treatments['Ca_moles'] = treatments['CaO_elemental'] / 100 * 1000 /  40.078
+        treatments['Ca_moles'] = treatments['CaO_elemental'] / 100 * 1000 / 40.078
         treatments['Mg_moles'] = treatments['MgO_elemental'] / 100 * 1000 / 24.305
         treatments['Total_Ca_Mg_moles'] = treatments['Ca_moles'] + treatments['Mg_moles']
-        data = treatments ## 
+        data = treatments
 
         @st.cache_data
         def convert_df(df):
             return df.to_csv(index=False).encode('utf-8')
 
         if grouping_choice == "No Grouping (All Data)":
-            all_growers = sorted(data['Grower'].dropna().unique())
-            selected_growers = st.multiselect("Select growers to include:", options=all_growers, default=all_growers)
-            data = data[data['Grower'].isin(selected_growers)]
+            allowed_pairs = [
+                ("Adam Wilbourne", "965"), ("Colin Garrett", "907"), ("Daniel Jones", "997"), ("Danny Williams", "891"),
+                ("Jay Foushee Chip Stone", "910"), ("Joe Overby", "861"), ("John Tyndall", "964"), ("Jordan Blaylock", "946"),
+                ("Jordan Mitchell", "860"), ("MD Capps", "961"), ("Merlin Brougher", "894"), ("Robert Elliot", "960"),
+                ("Rodger Overby", "975"), ("Stephen Sizemore", "962"), ("Will Sandling", "1006")
+            ]
+
+            data['Grower_DealID'] = data['Grower'] + ', ' + data['Deal ID'].astype(str)
+            allowed_keys = [f"{g}, {d}" for g, d in allowed_pairs]
+            data = data[data['Grower_DealID'].isin(allowed_keys)]
+
+            selected_keys = st.multiselect("Select Grower, Deal ID pairs:", options=sorted(allowed_keys), default=allowed_keys)
+            data = data[data['Grower_DealID'].isin(selected_keys)]
+
             data['__all__'] = "All Samples"
             grouping_choice = '__all__'
 
-            # First: make a copy of your filtered data
             filtered_data = data.copy()
-
-            # Then: create a new "Grower, Deal ID" column
             filtered_data['Grower, Deal ID'] = filtered_data['Grower'] + ', ' + filtered_data['Deal ID'].astype(str)
-
-            # Optional: move "Grower, Deal ID" to the first column
             cols = ['Grower, Deal ID'] + [col for col in filtered_data.columns if col not in ['Grower, Deal ID', 'Grower', 'Deal ID']]
             filtered_data = filtered_data[cols]
 
-            # Now: offer it for download
-            st.markdown("### 📥 Download Raw Filtered Data")
+            st.markdown("### \U0001F4E5 Download Raw Filtered Data")
             filtered_csv = convert_df(filtered_data)
             st.download_button(
                 label="Download CSV of Selected Growers",
                 data=filtered_csv,
                 file_name='filtered_raw_data.csv',
                 mime='text/csv',
-            
             )
-
 
         full_datasets = []
         for group in data[grouping_choice].unique():
@@ -94,16 +97,10 @@ if uploaded_file is not None:
             if all(x in types_present for x in ['BLP', 'R1']):
                 full_datasets.append(group)
 
-        # Allow download of selected growers subset
-        @st.cache_data
-        def convert_df(df):
-            return df.to_csv(index=False).encode('utf-8')
-
         csv = convert_df(data)
 
-
         st.markdown(f"✅ **{len(full_datasets)} unique groups** with complete datasets")
-        st.markdown(f"👩‍🌾 Across **{data['Grower'].nunique()} unique growers**")
+        st.markdown(f"\U0001F469‍\U0001F33E Across **{data['Grower'].nunique()} unique growers**")
 
         results = []
         n_bootstrap = 20000
@@ -194,81 +191,34 @@ if uploaded_file is not None:
             mime='text/csv'
         )
 
+        st.markdown("---")
+        st.header("\U0001F52C Bootstrap Distribution Viewer")
 
-        def plot_distribution(r, ax):
-            sns.histplot(r["bl_list"], bins=50, color="blue", label="Regional BL", stat="density", alpha=0.5, ax=ax)
-            sns.histplot(r["blp_list"], bins=50, color="purple", label="BLP", stat="density", alpha=0.5, ax=ax)
-            sns.histplot(r["r1_list"], bins=50, color="green", label="R1", stat="density", alpha=0.5, ax=ax)
+        numeric_columns = [col for col in data.columns if pd.api.types.is_numeric_dtype(data[col])]
+        selected_element = st.selectbox("Select element to bootstrap:", numeric_columns)
 
-            sns.kdeplot(r["bl_list"], color="blue", lw=2.5, ax=ax)
-            sns.kdeplot(r["blp_list"], color="purple", lw=2.5, ax=ax)
-            sns.kdeplot(r["r1_list"], color="green", lw=2.5, ax=ax)
+        sample_types = st.multiselect("Select Sample Type(s):", options=['BL', 'BLP', 'R1', 'R2'], default=['BL', 'BLP', 'R1'])
 
-            if r["r2_list"] is not None:
-                sns.histplot(r["r2_list"], bins=50, color="orange", label="R2", stat="density", alpha=0.5, ax=ax)
-                sns.kdeplot(r["r2_list"], color="orange", lw=2.5, ax=ax)
+        fig, ax = plt.subplots(figsize=(8, 4))
 
-            title = (
-                #f"{grouping_choice}: {r[grouping_choice]} | Deal ID: {r['deal_id']}\n"
-                f"Fw (R1): {r['Fw_mean']:.2f} ± {r['Fw_std']:.2f}%"
-            )
-            if r.get("Fw_2_mean") is not None:
-                title += f" | Fw_2 (R2): {r['Fw_2_mean']:.2f} ± {r['Fw_2_std']:.2f}%%"
-            title += (
-                f"\nRegional BL: {r['bl_count']}, BLP: {r['blp_count']}, "
-                f"R1: {r['r1_count']}, R2: {r['r2_count']}"
-            )
-            ax.set_title(title)
-            ax.set_xlabel("Ca + Mg (moles/kg)")
-            ax.set_ylabel("Density")
-            ax.legend()
+        for sample_type in sample_types:
+            subset = data[data['Sample Type'] == sample_type][selected_element].dropna().values
+            if len(subset) == 0:
+                st.warning(f"No data for {selected_element} in {sample_type}")
+                continue
 
-        col1, col2 = st.columns(2)
+            boot_samples = np.random.choice(subset, (n_bootstrap, len(subset)), replace=True)
+            boot_means = np.nanmean(boot_samples, axis=1)
 
-        with col1:
-            st.subheader("Positive Weathering Rates 🌿")
-            for r in positive_results:
-                fig, ax = plt.subplots()
-                plot_distribution(r, ax)
-                st.pyplot(fig)
+            sns.histplot(boot_means, bins=50, kde=True, stat='density', label=sample_type, ax=ax, alpha=0.4)
 
-        with col2:
-            st.subheader("Negative Weathering Rates ⛏️")
-            for r in negative_results:
-                fig, ax = plt.subplots()
-                plot_distribution(r, ax)
-                st.pyplot(fig)
+        ax.set_title(f"Bootstrap Mean Distribution for {selected_element}")
+        ax.set_xlabel(f"{selected_element} Mean Value")
+        ax.set_ylabel("Density")
+        ax.legend(title="Sample Type")
+        st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"⚠️ Error during processing: {e}")
+        st.error(f"\u26A0\uFE0F Error during processing: {e}")
 else:
-    st.info("📄 Upload a CSV file to begin.")
-
-
-
-st.markdown("---")
-st.header("🔬 Bootstrap Distribution Viewer")
-
-numeric_columns = [col for col in data.columns if pd.api.types.is_numeric_dtype(data[col])]
-selected_element = st.selectbox("Select element to bootstrap:", numeric_columns)
-
-sample_types = st.multiselect("Select Sample Type(s):", options=['BL', 'BLP', 'R1', 'R2'], default=['BL', 'BLP', 'R1'])
-
-fig, ax = plt.subplots(figsize=(8, 4))
-
-for sample_type in sample_types:
-    subset = data[data['Sample Type'] == sample_type][selected_element].dropna().values
-    if len(subset) == 0:
-        st.warning(f"No data for {selected_element} in {sample_type}")
-        continue
-
-    boot_samples = np.random.choice(subset, (n_bootstrap, len(subset)), replace=True)
-    boot_means = np.nanmean(boot_samples, axis=1)
-
-    sns.histplot(boot_means, bins=50, kde=True, stat='density', label=sample_type, ax=ax, alpha=0.4)
-
-ax.set_title(f"Bootstrap Mean Distribution for {selected_element}")
-ax.set_xlabel(f"{selected_element} Mean Value")
-ax.set_ylabel("Density")
-ax.legend(title="Sample Type")
-st.pyplot(fig)
+    st.info("\U0001F4C4 Upload a CSV file to begin.")
