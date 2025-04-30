@@ -49,10 +49,10 @@ if uploaded_file is not None:
             if element in treatments.columns:
                 treatments[element] = pd.to_numeric(treatments[element], errors='coerce')
 
-        treatments['Ca_moles'] = treatments['CaO_elemental'] / 40.078
-        treatments['Mg_moles'] = treatments['MgO_elemental'] / 24.305
+        treatments['Ca_moles'] = treatments['CaO_elemental'] / 100 * 1000 /  40.078
+        treatments['Mg_moles'] = treatments['MgO_elemental'] / 100 * 1000 / 24.305
         treatments['Total_Ca_Mg_moles'] = treatments['Ca_moles'] + treatments['Mg_moles']
-        data = treatments
+        data = treatments ## 
 
         @st.cache_data
         def convert_df(df):
@@ -219,7 +219,7 @@ if uploaded_file is not None:
                 f"R1: {r['r1_count']}, R2: {r['r2_count']}"
             )
             ax.set_title(title)
-            ax.set_xlabel("Ca + Mg (moles)")
+            ax.set_xlabel("Ca + Mg (moles/kg)")
             ax.set_ylabel("Density")
             ax.legend()
 
