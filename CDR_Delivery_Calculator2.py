@@ -243,3 +243,28 @@ if uploaded_file is not None:
         st.error(f"⚠️ Error during processing: {e}")
 else:
     st.info("📄 Upload a CSV file to begin.")
+
+
+
+st.markdown("---")
+st.header("🔬 Bootstrap Distribution Viewer")
+
+numeric_columns = [col for col in data.columns if pd.api.types.is_numeric_dtype(data[col])]
+selected_element = st.selectbox("Select element to bootstrap:", numeric_columns)
+
+sample_type = st.selectbox("Select Sample Type:", ['BL', 'BLP', 'R1', 'R2'])
+
+subset_element = data[data['Sample Type'] == sample_type][selected_element].dropna().values
+
+if len(subset_element) == 0:
+    st.warning(f"No data found for {selected_element} in {sample_type}")
+else:
+    boot_samples = np.random.choice(subset_element, (n_bootstrap, len(subset_element)), replace=True)
+    boot_means = np.nanmean(boot_samples, axis=1)
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.histplot(boot_means, bins=50, kde=True, color='teal', ax=ax)
+    ax.set_title(f"Bootstrap Mean Distribution\n{selected_element} in {sample_type}")
+    ax.set_xlabel(f"{selected_element} Mean Value")
+    ax.set_ylabel("Frequency")
+    st.pyplot(fig)
