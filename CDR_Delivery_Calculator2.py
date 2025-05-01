@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore")
 
 # Streamlit setup
 st.set_page_config(layout="wide")
-st.title("Lithos Carbon tCDR Delivery Calculator")
+st.title("Lithos Carbon tCDR Delivery Calculator (Median)")
 
 uploaded_file = st.file_uploader("Upload your Geochem CSV", type="csv")
 
@@ -31,7 +31,8 @@ if uploaded_file is not None:
         data[['Grower', 'Deal ID']] = data['Grower, Deal ID'].str.split(', ', expand=True)
         data.drop(columns=['Grower, Deal ID'], inplace=True)
 
-        treatments = data[data['Sample Type'].isin(['BL', 'BLP', 'R1'])].copy()
+        #treatments = data[data['Sample Type'].isin(['BL', 'BLP', 'R1'])].copy()
+        treatments = data[data['Sample Type'].isin(['BL','Regional BL', 'BLP', 'R1','R2'])].copy()
         treatments = treatments[(treatments['CaO'].notnull()) & (treatments['MgO'].notnull())]
 
         conversion_factors = {
@@ -45,12 +46,12 @@ if uploaded_file is not None:
                 treatments[oxide] = pd.to_numeric(treatments[oxide], errors='coerce')
                 treatments[oxide + '_elemental'] = treatments[oxide] * factor
 
-        for element in ['Ni', 'Cr', 'LOI', 'Eu', 'Sm', 'Gd', 'V', 'Sc']:
+        for element in ['Ni', 'Cr', 'LOI']:
             if element in treatments.columns:
                 treatments[element] = pd.to_numeric(treatments[element], errors='coerce')
 
-        treatments['Ca_moles'] = treatments['CaO_elemental'] / 100 * 1000 / 40.078
-        treatments['Mg_moles'] = treatments['MgO_elemental'] / 100 * 1000 / 24.305
+        treatments['Ca_moles'] = treatments['CaO_elemental'] / 40.078
+        treatments['Mg_moles'] = treatments['MgO_elemental'] / 24.305
         treatments['Total_Ca_Mg_moles'] = treatments['Ca_moles'] + treatments['Mg_moles']
         data = treatments
 
@@ -59,36 +60,33 @@ if uploaded_file is not None:
             return df.to_csv(index=False).encode('utf-8')
 
         if grouping_choice == "No Grouping (All Data)":
-            allowed_pairs = [
-                ("Adam Wilbourne", "965"), ("Colin Garrett", "907"), ("Daniel Jones", "997"), ("Danny Williams", "891"),
-                ("Jay Foushee Chip Stone", "910"), ("Joe Overby", "861"), ("John Tyndall", "964"), ("Jordan Blaylock", "946"),
-                ("Jordan Mitchell", "860"), ("MD Capps", "961"), ("Merlin Brougher", "894"), ("Robert Elliot", "960"),
-                ("Rodger Overby", "975"), ("Stephen Sizemore", "962"), ("Will Sandling", "1006")
-            ]
-
-            data['Grower_DealID'] = data['Grower'] + ', ' + data['Deal ID'].astype(str)
-            allowed_keys = [f"{g}, {d}" for g, d in allowed_pairs]
-            data = data[data['Grower_DealID'].isin(allowed_keys)]
-
-            selected_keys = st.multiselect("Select Grower, Deal ID pairs:", options=sorted(allowed_keys), default=allowed_keys)
-            data = data[data['Grower_DealID'].isin(selected_keys)]
-
+            all_growers = sorted(data['Grower'].dropna().unique())
+            selected_growers = st.multiselect("Select growers to include:", options=all_growers, default=all_growers)
+            data = data[data['Grower'].isin(selected_growers)]
             data['__all__'] = "All Samples"
             grouping_choice = '__all__'
 
+            # First: make a copy of your filtered data
             filtered_data = data.copy()
+
+            # Then: create a new "Grower, Deal ID" column
             filtered_data['Grower, Deal ID'] = filtered_data['Grower'] + ', ' + filtered_data['Deal ID'].astype(str)
+
+            # Optional: move "Grower, Deal ID" to the first column
             cols = ['Grower, Deal ID'] + [col for col in filtered_data.columns if col not in ['Grower, Deal ID', 'Grower', 'Deal ID']]
             filtered_data = filtered_data[cols]
 
-            st.markdown("### \U0001F4E5 Download Raw Filtered Data")
+            # Now: offer it for download
+            st.markdown("### 📥 Download Raw Filtered Data")
             filtered_csv = convert_df(filtered_data)
             st.download_button(
                 label="Download CSV of Selected Growers",
                 data=filtered_csv,
                 file_name='filtered_raw_data.csv',
                 mime='text/csv',
+            
             )
+
 
         full_datasets = []
         for group in data[grouping_choice].unique():
@@ -97,18 +95,39 @@ if uploaded_file is not None:
             if all(x in types_present for x in ['BLP', 'R1']):
                 full_datasets.append(group)
 
+        # Allow download of selected growers subset
+        @st.cache_data
+        def convert_df(df):
+            return df.to_csv(index=False).encode('utf-8')
+
         csv = convert_df(data)
 
+        # Checkbox to activate Regional BL usage
+        use_regional_bl = st.checkbox("✅ Use Regional BL for all Fw calculations", value=False)
+
         st.markdown(f"✅ **{len(full_datasets)} unique groups** with complete datasets")
-        st.markdown(f"\U0001F469‍\U0001F33E Across **{data['Grower'].nunique()} unique growers**")
+        st.markdown(f"👩‍🌾 Across **{data['Grower'].nunique()} unique growers**")
+
+        # Extract and validate Regional BL data if requested
+        if use_regional_bl:
+            regional_bl_df = data[data['Sample Type'].str.contains("Regional BL", na=False, case=False)]
+            if regional_bl_df.empty:
+                st.error("Regional BL selected but no 'Regional BL' samples found in 'Sample Type'.")
+                st.stop()
+
+            regional_bl_values = pd.to_numeric(regional_bl_df['Total_Ca_Mg_moles'], errors='coerce').dropna().values
+            if len(regional_bl_values) == 0:
+                st.error("'Regional BL' samples found, but all Ca+Mg values are missing or invalid.")
+                st.stop()
 
         results = []
         n_bootstrap = 20000
 
         for group in full_datasets:
             subset = data[data[grouping_choice] == group]
-            regional = data[data['Farm ID'] == 'Regional']
-            bl = pd.to_numeric(regional[regional['Sample Type'] == 'BL']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
+            #regional = data[data['Farm ID'] == 'Regional']
+            #bl = pd.to_numeric(subset[subset['Sample Type'] == 'BL']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
+            bl = regional_bl_values if use_regional_bl else pd.to_numeric(subset[subset['Sample Type'] == 'BL']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
             blp = pd.to_numeric(subset[subset['Sample Type'] == 'BLP']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
             r1 = pd.to_numeric(subset[subset['Sample Type'] == 'R1']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
             r2 = pd.to_numeric(subset[subset['Sample Type'] == 'R2']['Total_Ca_Mg_moles'], errors='coerce').dropna().values if 'R2' in subset['Sample Type'].values else None
@@ -139,6 +158,11 @@ if uploaded_file is not None:
                 Fw_2_median = np.nanmedian(Fw_2_vals)
                 Fw_2_std = np.nanstd(Fw_2_vals)
 
+            bl_median = np.nanmedian(bl_samples)
+            blp_median = np.nanmedian(blp_samples)
+            r1_median = np.nanmedian(r1_samples)
+
+
             results.append({
                 grouping_choice: group,
                 "deal_id": subset['Deal ID'].iloc[0],
@@ -147,6 +171,9 @@ if uploaded_file is not None:
                 "Fw_std": Fw_std,
                 "Fw_2_median": Fw_2_median,
                 "Fw_2_std": Fw_2_std,
+                "bl_median": bl_median,
+                "blp_median": blp_median,
+                "r1_median": r1_median,
                 "bl_list": bl_medians,
                 "blp_list": blp_medians,
                 "r1_list": r1_medians,
@@ -155,6 +182,7 @@ if uploaded_file is not None:
                 "blp_count": len(blp),
                 "r1_count": len(r1),
                 "r2_count": len(r2) if r2 is not None else 0,
+
             })
 
         positive_results = sorted([r for r in results if r["Fw_median"] > 0], key=lambda x: -x["Fw_median"])
@@ -172,10 +200,16 @@ if uploaded_file is not None:
                 "BLP Count": r["blp_count"],
                 "R1 Count": r["r1_count"],
                 "R2 Count": r["r2_count"],
-                "Fw median (%)": round(r["Fw_median"], 2),
+
+                "bl_median": r["bl_median"],
+                "blp_median": r["blp_median"],
+                "r1_median": r["r1_median"],
+
+                "Fw Median (%)": round(r["Fw_median"], 2),
                 "Fw Std Dev": round(r["Fw_std"], 2),
-                "Fw₂ median (%)": round(r["Fw_2_median"], 2) if r["Fw_2_median"] is not None else None,
+                "Fw₂ Median (%)": round(r["Fw_2_median"], 2) if r["Fw_2_median"] is not None else None,
                 "Fw₂ Std Dev": round(r["Fw_2_std"], 2) if r["Fw_2_std"] is not None else None,
+                
             }
             for r in results
         ])
@@ -191,34 +225,52 @@ if uploaded_file is not None:
             mime='text/csv'
         )
 
-        st.markdown("---")
-        st.header("\U0001F52C Bootstrap Distribution Viewer")
 
-        numeric_columns = [col for col in data.columns if pd.api.types.is_numeric_dtype(data[col])]
-        selected_element = st.selectbox("Select element to bootstrap:", numeric_columns)
+        def plot_distribution(r, ax):
+            sns.histplot(r["bl_list"], bins=50, color="blue", label="BL", stat="density", alpha=0.5, ax=ax)
+            sns.histplot(r["blp_list"], bins=50, color="purple", label="BLP", stat="density", alpha=0.5, ax=ax)
+            sns.histplot(r["r1_list"], bins=50, color="green", label="R1", stat="density", alpha=0.5, ax=ax)
 
-        sample_types = st.multiselect("Select Sample Type(s):", options=['BL', 'BLP', 'R1', 'R2'], default=['BL', 'BLP', 'R1'])
+            sns.kdeplot(r["bl_list"], color="blue", lw=2.5, ax=ax)
+            sns.kdeplot(r["blp_list"], color="purple", lw=2.5, ax=ax)
+            sns.kdeplot(r["r1_list"], color="green", lw=2.5, ax=ax)
 
-        fig, ax = plt.subplots(figsize=(8, 4))
+            if r["r2_list"] is not None:
+                sns.histplot(r["r2_list"], bins=50, color="orange", label="R2", stat="density", alpha=0.5, ax=ax)
+                sns.kdeplot(r["r2_list"], color="orange", lw=2.5, ax=ax)
 
-        for sample_type in sample_types:
-            subset = data[data['Sample Type'] == sample_type][selected_element].dropna().values
-            if len(subset) == 0:
-                st.warning(f"No data for {selected_element} in {sample_type}")
-                continue
+            title = (
+                f"{grouping_choice}: {r[grouping_choice]} | Deal ID: {r['deal_id']}\n"
+                f"Fw (R1): {r['Fw_median']:.2f} ± {r['Fw_std']:.2f}%"
+            )
+            if r.get("Fw_2_median") is not None:
+                title += f" | Fw_2 (R2): {r['Fw_2_median']:.2f} ± {r['Fw_2_std']:.2f}%%"
+            title += (
+                f"\nBL: {r['bl_count']}, BLP: {r['blp_count']}, "
+                f"R1: {r['r1_count']}, R2: {r['r2_count']}"
+            )
+            ax.set_title(title)
+            ax.set_xlabel("Ca + Mg (moles)")
+            ax.set_ylabel("Density")
+            ax.legend()
 
-            boot_samples = np.random.choice(subset, (n_bootstrap, len(subset)), replace=True)
-            boot_medians = np.nanmedian(boot_samples, axis=1)
+        col1, col2 = st.columns(2)
 
-            sns.histplot(boot_medians, bins=50, kde=True, stat='density', label=sample_type, ax=ax, alpha=0.4)
+        with col1:
+            st.subheader("Positive Weathering Rates 🌿")
+            for r in positive_results:
+                fig, ax = plt.subplots()
+                plot_distribution(r, ax)
+                st.pyplot(fig)
 
-        ax.set_title(f"Bootstrap median Distribution for {selected_element}")
-        ax.set_xlabel(f"{selected_element} median Value")
-        ax.set_ylabel("Density")
-        ax.legend(title="Sample Type")
-        st.pyplot(fig)
+        with col2:
+            st.subheader("Negative Weathering Rates ⛏️")
+            for r in negative_results:
+                fig, ax = plt.subplots()
+                plot_distribution(r, ax)
+                st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"\u26A0\uFE0F Error during processing: {e}")
+        st.error(f"⚠️ Error during processing: {e}")
 else:
-    st.info("\U0001F4C4 Upload a CSV file to begin.")
+    st.info("📄 Upload a CSV file to begin.")
