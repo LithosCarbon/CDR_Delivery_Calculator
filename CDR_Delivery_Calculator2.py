@@ -45,7 +45,7 @@ if uploaded_file is not None:
                 treatments[oxide] = pd.to_numeric(treatments[oxide], errors='coerce')
                 treatments[oxide + '_elemental'] = treatments[oxide] * factor
 
-        for element in ['Ni', 'Cr', 'LOI', 'Eu', 'Sm', 'Gd', 'V']:
+        for element in ['Ni', 'Cr', 'LOI', 'Eu', 'Sm', 'Gd', 'V', 'Sc']:
             if element in treatments.columns:
                 treatments[element] = pd.to_numeric(treatments[element], errors='coerce')
 
