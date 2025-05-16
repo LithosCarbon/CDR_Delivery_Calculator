@@ -11,24 +11,33 @@ st.title("CDR Weathering Rate Calculator")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload your geochemical dataset (CSV)", type=["csv"])
+
 if uploaded_file:
     data = pd.read_csv(uploaded_file)
 
-    # Dropdown to choose analysis column
+    # Show columns in uploaded file
+    st.write("📄 Columns in uploaded file:", list(data.columns))
+
+    # Dropdown to choose which column to use for Fw calculation
     analysis_column = st.selectbox(
         "Choose the column for weathering rate analysis:",
         options=["Total_Ca_Mg_moles", "Ca_moles"]
     )
 
-    # Field filter
+    # Validate selected column exists
+    if analysis_column not in data.columns:
+        st.error(f"❌ Column '{analysis_column}' not found in uploaded data. Please check column names.")
+        st.stop()
+
+    # Convert column to numeric
+    data[analysis_column] = pd.to_numeric(data[analysis_column], errors='coerce')
+
+    # Dropdown to choose fields
     field_list = sorted(data["Field ID"].dropna().unique())
     selected_fields = st.multiselect("Select Field IDs for analysis:", field_list, default=field_list)
 
     if selected_fields:
         data = data[data["Field ID"].isin(selected_fields)]
-
-        # Clean and coerce to numeric
-        data[analysis_column] = pd.to_numeric(data[analysis_column], errors='coerce')
 
         field_weathering = []
         for field in selected_fields:
@@ -47,11 +56,16 @@ if uploaded_file:
             st.subheader("Weathering Rate Summary")
             st.dataframe(df_results)
 
-            # Plotting
+            # Boxplot of Fw
             plt.figure(figsize=(10, 6))
             sns.boxplot(y=df_results['Fw (%)'])
-            plt.title("Weathering Rate (Fw %) Distribution")
+            plt.title(f"Weathering Rate (Fw %) using {analysis_column}")
             plt.ylabel("Fw (%)")
             st.pyplot(plt)
+
         else:
-            st.warning("Not enough valid data across BL, BLP, and R1 for selected fields.")
+            st.warning("⚠️ Not enough valid data across BL, BLP, and R1 for selected fields.")
+    else:
+        st.warning("⚠️ Please select at least one field.")
+else:
+    st.info("⬆️ Upload a CSV file to begin.")
