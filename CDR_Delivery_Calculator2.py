@@ -56,7 +56,7 @@ if uploaded_file is not None:
         st.subheader("Select Cation Column for Fw Analysis")
         analysis_column = st.selectbox(
             "Choose cation column:",
-            options=["Total_Ca_Mg_moles", "Ca_moles"],
+            options=["Total_Ca_Mg_moles", "Ca_moles", "Mg_moles"],
             index=0
         )
 
