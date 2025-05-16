@@ -52,7 +52,7 @@ if uploaded_file is not None:
 
         treatments['Ca_moles'] = treatments['CaO_elemental'] / 40.078
         treatments['Mg_moles'] = treatments['MgO_elemental'] / 24.305
-        treatments['Total_Ca_Mg_moles'] = treatments['Ca_moles'] + treatments['Mg_moles']
+        treatments[analysis_column] = treatments['Ca_moles'] + treatments['Mg_moles']
         data = treatments
         # Dropdown to choose which column to use for Fw analysis
         st.subheader("Select Cation Column for Fw Analysis")
@@ -123,7 +123,7 @@ if uploaded_file is not None:
                 st.error("Regional BL selected but no 'Regional BL' samples found in 'Sample Type'.")
                 st.stop()
 
-            regional_bl_values = pd.to_numeric(regional_bl_df['Total_Ca_Mg_moles'], errors='coerce').dropna().values
+            regional_bl_values = pd.to_numeric(regional_bl_df[analysis_column], errors='coerce').dropna().values
             if len(regional_bl_values) == 0:
                 st.error("'Regional BL' samples found, but all Ca+Mg values are missing or invalid.")
                 st.stop()
@@ -134,11 +134,11 @@ if uploaded_file is not None:
         for group in full_datasets:
             subset = data[data[grouping_choice] == group]
             #regional = data[data['Farm ID'] == 'Regional']
-            #bl = pd.to_numeric(subset[subset['Sample Type'] == 'BL']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
-            bl = regional_bl_values if use_regional_bl else pd.to_numeric(subset[subset['Sample Type'] == 'BL']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
-            blp = pd.to_numeric(subset[subset['Sample Type'] == 'BLP']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
-            r1 = pd.to_numeric(subset[subset['Sample Type'] == 'R1']['Total_Ca_Mg_moles'], errors='coerce').dropna().values
-            r2 = pd.to_numeric(subset[subset['Sample Type'] == 'R2']['Total_Ca_Mg_moles'], errors='coerce').dropna().values if 'R2' in subset['Sample Type'].values else None
+            #bl = pd.to_numeric(subset[subset['Sample Type'] == 'BL'][analysis_column], errors='coerce').dropna().values
+            bl = regional_bl_values if use_regional_bl else pd.to_numeric(subset[subset['Sample Type'] == 'BL'][analysis_column], errors='coerce').dropna().values
+            blp = pd.to_numeric(subset[subset['Sample Type'] == 'BLP'][analysis_column], errors='coerce').dropna().values
+            r1 = pd.to_numeric(subset[subset['Sample Type'] == 'R1'][analysis_column], errors='coerce').dropna().values
+            r2 = pd.to_numeric(subset[subset['Sample Type'] == 'R2'][analysis_column], errors='coerce').dropna().values if 'R2' in subset['Sample Type'].values else None
 
             if min(len(bl), len(blp), len(r1)) == 0:
                 continue
