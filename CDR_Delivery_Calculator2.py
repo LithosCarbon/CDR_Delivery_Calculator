@@ -6,10 +6,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 
-# Suppress warnings
 warnings.filterwarnings("ignore")
 
-# Streamlit setup
 st.set_page_config(layout="wide")
 st.title("Lithos Carbon tCDR Delivery Calculator (Median)")
 
@@ -31,7 +29,6 @@ if uploaded_file is not None:
         data[['Grower', 'Deal ID']] = data['Grower, Deal ID'].str.split(', ', expand=True)
         data.drop(columns=['Grower, Deal ID'], inplace=True)
 
-        #treatments = data[data['Sample Type'].isin(['BL', 'BLP', 'R1'])].copy()
         treatments = data[data['Sample Type'].isin(['BL','Regional BL', 'BLP', 'R1','R2'])].copy()
         treatments = treatments[(treatments['CaO'].notnull()) & (treatments['MgO'].notnull())]
 
@@ -52,16 +49,16 @@ if uploaded_file is not None:
 
         treatments['Ca_moles'] = treatments['CaO_elemental'] / 40.078
         treatments['Mg_moles'] = treatments['MgO_elemental'] / 24.305
-        treatments[analysis_column] = treatments['Ca_moles'] + treatments['Mg_moles']
+        treatments['Total_Ca_Mg_moles'] = treatments['Ca_moles'] + treatments['Mg_moles']
         data = treatments
-        # Dropdown to choose which column to use for Fw analysis
+
+        # 🔧 Dropdown selector for analysis column
         st.subheader("Select Cation Column for Fw Analysis")
         analysis_column = st.selectbox(
             "Choose cation column:",
             options=["Total_Ca_Mg_moles", "Ca_moles"],
             index=0
         )
-
 
         @st.cache_data
         def convert_df(df):
@@ -73,18 +70,11 @@ if uploaded_file is not None:
             data = data[data['Grower'].isin(selected_growers)]
             data['__all__'] = "All Samples"
             grouping_choice = '__all__'
-
-            # First: make a copy of your filtered data
             filtered_data = data.copy()
-
-            # Then: create a new "Grower, Deal ID" column
             filtered_data['Grower, Deal ID'] = filtered_data['Grower'] + ', ' + filtered_data['Deal ID'].astype(str)
-
-            # Optional: move "Grower, Deal ID" to the first column
             cols = ['Grower, Deal ID'] + [col for col in filtered_data.columns if col not in ['Grower, Deal ID', 'Grower', 'Deal ID']]
             filtered_data = filtered_data[cols]
 
-            # Now: offer it for download
             st.markdown("### 📥 Download Raw Filtered Data")
             filtered_csv = convert_df(filtered_data)
             st.download_button(
@@ -92,9 +82,7 @@ if uploaded_file is not None:
                 data=filtered_csv,
                 file_name='filtered_raw_data.csv',
                 mime='text/csv',
-            
             )
-
 
         full_datasets = []
         for group in data[grouping_choice].unique():
@@ -103,26 +91,16 @@ if uploaded_file is not None:
             if all(x in types_present for x in ['BLP', 'R1']):
                 full_datasets.append(group)
 
-        # Allow download of selected growers subset
-        @st.cache_data
-        def convert_df(df):
-            return df.to_csv(index=False).encode('utf-8')
-
-        csv = convert_df(data)
-
-        # Checkbox to activate Regional BL usage
         use_regional_bl = st.checkbox("✅ Use Regional BL for all Fw calculations", value=False)
 
         st.markdown(f"✅ **{len(full_datasets)} unique groups** with complete datasets")
         st.markdown(f"👩‍🌾 Across **{data['Grower'].nunique()} unique growers**")
 
-        # Extract and validate Regional BL data if requested
         if use_regional_bl:
             regional_bl_df = data[data['Sample Type'].str.contains("Regional BL", na=False, case=False)]
             if regional_bl_df.empty:
                 st.error("Regional BL selected but no 'Regional BL' samples found in 'Sample Type'.")
                 st.stop()
-
             regional_bl_values = pd.to_numeric(regional_bl_df[analysis_column], errors='coerce').dropna().values
             if len(regional_bl_values) == 0:
                 st.error("'Regional BL' samples found, but all Ca+Mg values are missing or invalid.")
@@ -133,8 +111,6 @@ if uploaded_file is not None:
 
         for group in full_datasets:
             subset = data[data[grouping_choice] == group]
-            #regional = data[data['Farm ID'] == 'Regional']
-            #bl = pd.to_numeric(subset[subset['Sample Type'] == 'BL'][analysis_column], errors='coerce').dropna().values
             bl = regional_bl_values if use_regional_bl else pd.to_numeric(subset[subset['Sample Type'] == 'BL'][analysis_column], errors='coerce').dropna().values
             blp = pd.to_numeric(subset[subset['Sample Type'] == 'BLP'][analysis_column], errors='coerce').dropna().values
             r1 = pd.to_numeric(subset[subset['Sample Type'] == 'R1'][analysis_column], errors='coerce').dropna().values
@@ -170,7 +146,6 @@ if uploaded_file is not None:
             blp_median = np.nanmedian(blp_samples)
             r1_median = np.nanmedian(r1_samples)
 
-
             results.append({
                 grouping_choice: group,
                 "deal_id": subset['Deal ID'].iloc[0],
@@ -190,14 +165,13 @@ if uploaded_file is not None:
                 "blp_count": len(blp),
                 "r1_count": len(r1),
                 "r2_count": len(r2) if r2 is not None else 0,
-
             })
 
         positive_results = sorted([r for r in results if r["Fw_median"] > 0], key=lambda x: -x["Fw_median"])
         negative_results = sorted([r for r in results if r["Fw_median"] <= 0], key=lambda x: x["Fw_median"])
 
-        st.markdown(f"\U0001F331 **{len(positive_results)} groups** with positive weathering rates")
-        st.markdown(f"\U0001FAA8 **{len(negative_results)} groups** with negative or zero weathering rates")
+        st.markdown(f"🌿 **{len(positive_results)} groups** with positive weathering rates")
+        st.markdown(f"⛏️ **{len(negative_results)} groups** with negative or zero weathering rates")
 
         summary_df = pd.DataFrame([
             {
@@ -208,16 +182,13 @@ if uploaded_file is not None:
                 "BLP Count": r["blp_count"],
                 "R1 Count": r["r1_count"],
                 "R2 Count": r["r2_count"],
-
                 "bl_median": r["bl_median"],
                 "blp_median": r["blp_median"],
                 "r1_median": r["r1_median"],
-
                 "Fw Median (%)": round(r["Fw_median"], 2),
                 "Fw Std Dev": round(r["Fw_std"], 2),
                 "Fw₂ Median (%)": round(r["Fw_2_median"], 2) if r["Fw_2_median"] is not None else None,
                 "Fw₂ Std Dev": round(r["Fw_2_std"], 2) if r["Fw_2_std"] is not None else None,
-                
             }
             for r in results
         ])
@@ -225,7 +196,6 @@ if uploaded_file is not None:
         st.dataframe(summary_df.reset_index(drop=True), use_container_width=True)
 
         summary_csv = convert_df(summary_df)
-
         st.download_button(
             label="Download Summary Table",
             data=summary_csv,
@@ -233,16 +203,13 @@ if uploaded_file is not None:
             mime='text/csv'
         )
 
-
         def plot_distribution(r, ax):
             sns.histplot(r["bl_list"], bins=50, color="blue", label="BL", stat="density", alpha=0.5, ax=ax)
             sns.histplot(r["blp_list"], bins=50, color="purple", label="BLP", stat="density", alpha=0.5, ax=ax)
             sns.histplot(r["r1_list"], bins=50, color="green", label="R1", stat="density", alpha=0.5, ax=ax)
-
             sns.kdeplot(r["bl_list"], color="blue", lw=2.5, ax=ax)
             sns.kdeplot(r["blp_list"], color="purple", lw=2.5, ax=ax)
             sns.kdeplot(r["r1_list"], color="green", lw=2.5, ax=ax)
-
             if r["r2_list"] is not None:
                 sns.histplot(r["r2_list"], bins=50, color="orange", label="R2", stat="density", alpha=0.5, ax=ax)
                 sns.kdeplot(r["r2_list"], color="orange", lw=2.5, ax=ax)
@@ -252,13 +219,13 @@ if uploaded_file is not None:
                 f"Fw (R1): {r['Fw_median']:.2f} ± {r['Fw_std']:.2f}%"
             )
             if r.get("Fw_2_median") is not None:
-                title += f" | Fw_2 (R2): {r['Fw_2_median']:.2f} ± {r['Fw_2_std']:.2f}%%"
+                title += f" | Fw_2 (R2): {r['Fw_2_median']:.2f} ± {r['Fw_2_std']:.2f}%"
             title += (
                 f"\nBL: {r['bl_count']}, BLP: {r['blp_count']}, "
                 f"R1: {r['r1_count']}, R2: {r['r2_count']}"
             )
             ax.set_title(title)
-            ax.set_xlabel("Ca + Mg (moles)")
+            ax.set_xlabel(f"{analysis_column} (moles)")
             ax.set_ylabel("Density")
             ax.legend()
 
