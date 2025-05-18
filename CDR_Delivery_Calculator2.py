@@ -204,14 +204,14 @@ if uploaded_file is not None:
         )
 
         def plot_distribution(r, ax):
-            sns.histplot(r["bl_list"], bins=50, color="blue", label="BL", stat="density", alpha=0.5, ax=ax)
-            sns.histplot(r["blp_list"], bins=50, color="purple", label="BLP", stat="density", alpha=0.5, ax=ax)
-            sns.histplot(r["r1_list"], bins=50, color="green", label="R1", stat="density", alpha=0.5, ax=ax)
+            sns.histplot(r["bl_list"], bins=50, color="black", label="BL", stat="density", alpha=0.5, ax=ax)
+            sns.histplot(r["blp_list"], bins=50, color="slategrey", label="BLP", stat="density", alpha=0.5, ax=ax)
+            sns.histplot(r["r1_list"], bins=50, color="royalblue", label="R1", stat="density", alpha=0.5, ax=ax)
             sns.kdeplot(r["bl_list"], color="blue", lw=2.5, ax=ax)
             sns.kdeplot(r["blp_list"], color="purple", lw=2.5, ax=ax)
             sns.kdeplot(r["r1_list"], color="green", lw=2.5, ax=ax)
             if r["r2_list"] is not None:
-                sns.histplot(r["r2_list"], bins=50, color="orange", label="R2", stat="density", alpha=0.5, ax=ax)
+                sns.histplot(r["r2_list"], bins=50, color="blue", label="R2", stat="density", alpha=0.5, ax=ax)
                 sns.kdeplot(r["r2_list"], color="orange", lw=2.5, ax=ax)
 
             title = (
