@@ -47,8 +47,8 @@ if uploaded_file is not None:
             if element in treatments.columns:
                 treatments[element] = pd.to_numeric(treatments[element], errors='coerce')
 
-        treatments['Ca_moles'] = treatments['CaO_elemental'] / 40.078
-        treatments['Mg_moles'] = treatments['MgO_elemental'] / 24.305
+        treatments['Ca_moles'] = treatments['CaO_elemental'] / 40.078 * 10
+        treatments['Mg_moles'] = treatments['MgO_elemental'] / 24.305 * 10
         treatments['Total_Ca_Mg_moles'] = treatments['Ca_moles'] + treatments['Mg_moles']
         data = treatments
 
