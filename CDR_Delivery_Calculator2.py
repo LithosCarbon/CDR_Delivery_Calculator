@@ -225,7 +225,7 @@ if uploaded_file is not None:
                 f"R1: {r['r1_count']}, R2: {r['r2_count']}"
             )
             ax.set_title(title)
-            ax.set_xlabel(f"{analysis_column} (moles)")
+            ax.set_xlabel(f"{analysis_column} (moles/kg)")
             ax.set_ylabel("Density")
             ax.legend()
 
