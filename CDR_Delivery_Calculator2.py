@@ -211,8 +211,8 @@ if uploaded_file is not None:
             sns.kdeplot(r["blp_list"], color="grey", lw=2.5, ax=ax)
             sns.kdeplot(r["r1_list"], color="darkblue", lw=2.5, ax=ax)
             if r["r2_list"] is not None:
-                sns.histplot(r["r2_list"], bins=50, color="darkblue", label="R2", stat="density", alpha=0.5, ax=ax)
-                sns.kdeplot(r["r2_list"], color="darkblue", lw=2.5, ax=ax)
+                sns.histplot(r["r2_list"], bins=50, color="cyan", label="R2", stat="density", alpha=0.5, ax=ax)
+                sns.kdeplot(r["r2_list"], color="cyan", lw=2.5, ax=ax)
 
             title = (
                 f"{grouping_choice}: {r[grouping_choice]} | Deal ID: {r['deal_id']}\n"
